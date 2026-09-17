@@ -12,9 +12,11 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      # expo-modules-jsi uses `weak let` (Swift 6.3+, Xcode 26.3+); older
-      # Xcodes fail with "'weak' must be a mutable variable" (expo/expo#46242).
-      DEVELOPER_DIR: /Applications/Xcode_26.2.app
+      # Expo SDK 57 needs Swift tools 6.2 (Xcode 26). Newer Xcodes (26.2/26.3)
+      # reject expo-modules-jsi with "sending ... risks causing data races"
+      # (expo/expo#47539), so pin the oldest Swift 6.2 toolchain and patch the
+      # two remaining incompatibilities (weak let, SWIFT_RETURNS_RETAINED) below.
+      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app
     steps:
       - uses: actions/checkout@v4
 
@@ -43,14 +45,16 @@ jobs:
 
       - name: Patch expo-modules-jsi for Swift 6.2+ (expo/expo#50067)
         run: |
+          # Swift 6.2.0 rejects SWIFT_RETURNS_RETAINED on constructors (expo/expo#50067).
           H=node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
           sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler(/RuntimeScheduler(/' "$H"
           grep -n "RuntimeScheduler(" "$H" | head -4
-          # Swift 6 mode trips "sending ... risks causing data races" on current
-          # Xcodes (expo/expo#47539); v5 mode demotes those to warnings.
-          P=node_modules/expo-modules-jsi/apple/Package.swift
-          sed -i '' 's/swiftLanguageModes: \[\.v6\]/swiftLanguageModes: [.v5]/' "$P"
-          grep -n "swiftLanguageModes" "$P"
+          # `weak let` needs a newer Swift than 6.2.0; `weak var` is equivalent
+          # minus immutability enforcement (expo/expo#46242).
+          grep -rl "weak let " node_modules/expo-modules-jsi/apple/Sources | while read -r f; do
+            sed -i '' 's/weak let /weak var /g' "$f"
+          done
+          grep -rc "weak let " node_modules/expo-modules-jsi/apple/Sources || echo "all weak lets patched"
 
       - name: Prebuild ExpoModulesJSI xcframework (isolated, full output)
         run: |
