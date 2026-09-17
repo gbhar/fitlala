@@ -1,0 +1,55 @@
+name: iOS build (unsigned IPA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate iOS project (expo prebuild + pod install)
+        run: npx expo prebuild --platform ios
+
+      - name: Build (Release, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/WakeFitAlarm.xcworkspace \
+            -scheme WakeFitAlarm \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | xcbeautify --renderer github-actions
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/WakeFitAlarm.app"
+          test -d "$APP_PATH" || { echo "::error::.app not found"; exit 1; }
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry WakeFitAlarm-unsigned.ipa Payload
+          ls -la WakeFitAlarm-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WakeFitAlarm-unsigned-ipa
+          path: WakeFitAlarm-unsigned.ipa
+          retention-days: 30
