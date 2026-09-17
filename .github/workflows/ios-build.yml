@@ -25,6 +25,18 @@ jobs:
       - name: Generate iOS project (expo prebuild + pod install)
         run: npx expo prebuild --platform ios
 
+      - name: Xcode info
+        run: |
+          xcodebuild -version
+          ls /Applications | grep -i xcode || true
+
+      - name: Resolve Swift packages (raw output)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/WakeFitAlarm.xcworkspace \
+            -scheme WakeFitAlarm \
+            -clonedSourcePackagesDirPath ios/SourcePackages
+
       - name: Build (Release, unsigned)
         run: |
           set -o pipefail
@@ -34,6 +46,7 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            -clonedSourcePackagesDirPath ios/SourcePackages \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
