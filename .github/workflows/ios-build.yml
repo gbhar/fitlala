@@ -49,10 +49,11 @@ jobs:
           H=node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
           sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler(/RuntimeScheduler(/' "$H"
           grep -n "RuntimeScheduler(" "$H" | head -4
-          # `weak let` needs a newer Swift than 6.2.0; `weak var` is equivalent
-          # minus immutability enforcement (expo/expo#46242).
+          # `weak let` needs a newer Swift than 6.2.0. `nonisolated(unsafe) weak var`
+          # is the pre-6.2 equivalent: mutable, exempt from Sendable checking —
+          # sound here because these are set once in init (expo/expo#46242).
           grep -rl "weak let " node_modules/expo-modules-jsi/apple/Sources | while read -r f; do
-            sed -i '' 's/weak let /weak var /g' "$f"
+            sed -i '' 's/weak let /nonisolated(unsafe) weak var /g' "$f"
           done
           grep -rc "weak let " node_modules/expo-modules-jsi/apple/Sources || echo "all weak lets patched"
 
