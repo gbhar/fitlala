@@ -46,6 +46,11 @@ jobs:
           H=node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
           sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler(/RuntimeScheduler(/' "$H"
           grep -n "RuntimeScheduler(" "$H" | head -4
+          # Swift 6 mode trips "sending ... risks causing data races" on current
+          # Xcodes (expo/expo#47539); v5 mode demotes those to warnings.
+          P=node_modules/expo-modules-jsi/apple/Package.swift
+          sed -i '' 's/swiftLanguageModes: \[\.v6\]/swiftLanguageModes: [.v5]/' "$P"
+          grep -n "swiftLanguageModes" "$P"
 
       - name: Prebuild ExpoModulesJSI xcframework (isolated, full output)
         run: |
