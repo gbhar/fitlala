@@ -14,7 +14,7 @@ jobs:
     env:
       # expo-modules-jsi uses `weak let` (Swift 6.3+, Xcode 26.3+); older
       # Xcodes fail with "'weak' must be a mutable variable" (expo/expo#46242).
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app
     steps:
       - uses: actions/checkout@v4
 
