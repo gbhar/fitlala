@@ -12,9 +12,9 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      # Expo SDK 57 needs Swift 6.2 (Xcode 26), but expo-modules-jsi breaks on
-      # newer Swift (expo/expo#50067) — pin the Xcode SDK 57 was built against.
-      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app
+      # expo-modules-jsi uses `weak let` (Swift 6.3+, Xcode 26.3+); older
+      # Xcodes fail with "'weak' must be a mutable variable" (expo/expo#46242).
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app
     steps:
       - uses: actions/checkout@v4
 
@@ -31,7 +31,7 @@ jobs:
 
       - name: Xcode info
         run: |
-          xcodebuild -version
+          xcodebuild -version; swift --version
           ls /Applications | grep -i xcode || true
 
       - name: Resolve Swift packages (raw output)
