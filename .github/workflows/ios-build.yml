@@ -11,6 +11,9 @@ jobs:
   build-ios:
     runs-on: macos-15
     timeout-minutes: 60
+    env:
+      # Expo SDK 57 needs Swift 6.2 (Xcode 26); runner default is Xcode 16.4.
+      DEVELOPER_DIR: /Applications/Xcode_26.1.app
     steps:
       - uses: actions/checkout@v4
 
