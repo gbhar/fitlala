@@ -12,8 +12,9 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      # Expo SDK 57 needs Swift 6.2 (Xcode 26); runner default is Xcode 16.4.
-      DEVELOPER_DIR: /Applications/Xcode_26.1.app
+      # Expo SDK 57 needs Swift 6.2 (Xcode 26), but expo-modules-jsi breaks on
+      # newer Swift (expo/expo#50067) — pin the Xcode SDK 57 was built against.
+      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app
     steps:
       - uses: actions/checkout@v4
 
