@@ -12,11 +12,14 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      # Expo SDK 57 needs Swift tools 6.2 (Xcode 26). Newer Xcodes (26.2/26.3)
-      # reject expo-modules-jsi with "sending ... risks causing data races"
-      # (expo/expo#47539), so pin the oldest Swift 6.2 toolchain and patch the
-      # two remaining incompatibilities (weak let, SWIFT_RETURNS_RETAINED) below.
+      # Expo SDK 57 needs Swift tools 6.2 (Xcode 26). expo-modules-jsi 57.x
+      # does not compile from source on ANY current Swift 6.2 compiler
+      # (expo/expo#46242, #50067, #47539) — the supported path is precompiled
+      # xcframeworks (what EAS uses), enabled below.
       DEVELOPER_DIR: /Applications/Xcode_26.0.1.app
+      # Download prebuilt Expo/RN xcframeworks instead of compiling from source.
+      EXPO_USE_PRECOMPILED_MODULES: '1'
+      EXPO_PRECOMPILED_FLAVOR: release
     steps:
       - uses: actions/checkout@v4
 
@@ -31,37 +34,6 @@ jobs:
       - name: Generate iOS project (expo prebuild + pod install)
         run: npx expo prebuild --platform ios
 
-      - name: Xcode info
-        run: |
-          xcodebuild -version; swift --version
-          ls /Applications | grep -i xcode || true
-
-      - name: Resolve Swift packages (raw output)
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -workspace ios/WakeFitAlarm.xcworkspace \
-            -scheme WakeFitAlarm \
-            -clonedSourcePackagesDirPath ios/SourcePackages
-
-      - name: Patch expo-modules-jsi for Swift 6.2+ (expo/expo#50067)
-        run: |
-          # Swift 6.2.0 rejects SWIFT_RETURNS_RETAINED on constructors (expo/expo#50067).
-          H=node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
-          sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler(/RuntimeScheduler(/' "$H"
-          grep -n "RuntimeScheduler(" "$H" | head -4
-          # `weak let` needs a newer Swift than 6.2.0. `nonisolated(unsafe) weak var`
-          # is the pre-6.2 equivalent: mutable, exempt from Sendable checking —
-          # sound here because these are set once in init (expo/expo#46242).
-          grep -rl "weak let " node_modules/expo-modules-jsi/apple/Sources | while read -r f; do
-            sed -i '' 's/weak let /nonisolated(unsafe) weak var /g' "$f"
-          done
-          grep -rc "weak let " node_modules/expo-modules-jsi/apple/Sources || echo "all weak lets patched"
-
-      - name: Prebuild ExpoModulesJSI xcframework (isolated, full output)
-        run: |
-          PODS_ROOT="$PWD/ios/Pods" RN_ROOT="$PWD/node_modules/react-native" PLATFORM_NAME=iphoneos \
-            bash node_modules/expo-modules-jsi/apple/scripts/build-xcframework.sh
-
       - name: Build (Release, unsigned)
         run: |
           set -o pipefail
@@ -75,7 +47,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build 2>&1 | tee xcodebuild.log | grep -E "error|warning: Could not|BUILD" | head -100 || true
+            build 2>&1 | tee xcodebuild.log | grep -E "error|BUILD" | head -100 || true
           tail -5 xcodebuild.log
           grep -q "BUILD SUCCEEDED" xcodebuild.log
 
