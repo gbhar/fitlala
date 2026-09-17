@@ -41,6 +41,12 @@ jobs:
             -scheme WakeFitAlarm \
             -clonedSourcePackagesDirPath ios/SourcePackages
 
+      - name: Patch expo-modules-jsi for Swift 6.2+ (expo/expo#50067)
+        run: |
+          H=node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
+          sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler(/RuntimeScheduler(/' "$H"
+          grep -n "RuntimeScheduler(" "$H" | head -4
+
       - name: Prebuild ExpoModulesJSI xcframework (isolated, full output)
         run: |
           PODS_ROOT="$PWD/ios/Pods" RN_ROOT="$PWD/node_modules/react-native" PLATFORM_NAME=iphoneos \
