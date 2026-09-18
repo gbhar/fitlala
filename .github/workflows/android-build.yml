@@ -1,0 +1,48 @@
+name: Android build (APK)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install JS dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Android project (expo prebuild)
+        run: npx expo prebuild --platform android
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Locate APK
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          test -n "$APK" || { echo "::error::APK not found"; exit 1; }
+          cp "$APK" WakeFitAlarm.apk
+          ls -la WakeFitAlarm.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WakeFitAlarm-apk
+          path: WakeFitAlarm.apk
+          retention-days: 30
