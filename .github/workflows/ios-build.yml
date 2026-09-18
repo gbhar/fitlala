@@ -13,11 +13,13 @@ jobs:
     timeout-minutes: 60
     env:
       # Expo SDK 57 needs Swift tools 6.2 (Xcode 26). expo-modules-jsi 57.x
-      # does not compile from source on ANY current Swift 6.2 compiler
-      # (expo/expo#46242, #50067, #47539) — the supported path is precompiled
-      # xcframeworks (what EAS uses), enabled below.
-      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app
-      # Download prebuilt Expo/RN xcframeworks instead of compiling from source.
+      # does not compile from source on ANY current Swift 6.2 compiler in v6
+      # language mode (expo/expo#46242, #50067, #47539). Xcode 26.2 accepts
+      # `weak let`; the remaining errors are patched below by dropping the
+      # package to v5 language mode (demotes `sending` data-race errors to
+      # warnings) with the two v6-default features it relies on re-enabled.
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app
+      # Download prebuilt Expo/RN xcframeworks where available.
       EXPO_USE_PRECOMPILED_MODULES: '1'
       EXPO_PRECOMPILED_FLAVOR: release
     steps:
@@ -30,6 +32,20 @@ jobs:
 
       - name: Install JS dependencies
         run: npm ci --legacy-peer-deps
+
+      - name: Patch expo-modules-jsi (does not compile from source, see expo/expo#50067 #47539)
+        run: |
+          # Swift 6.2 rejects SWIFT_RETURNS_RETAINED on constructors of
+          # SWIFT_SHARED_REFERENCE types (expo/expo#50067).
+          H=node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
+          sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler(/RuntimeScheduler(/' "$H"
+          # v5 language mode: "sending ... risks causing data races" becomes a
+          # warning. Re-enable the two v6-default features the code relies on:
+          # bare /regex/ literals and actor-isolated stored-property defaults.
+          P=node_modules/expo-modules-jsi/apple/Package.swift
+          sed -i '' 's/swiftLanguageModes: \[\.v6\]/swiftLanguageModes: [.v5]/' "$P"
+          sed -i '' 's/\.interoperabilityMode(\.Cxx),/.interoperabilityMode(.Cxx), .enableUpcomingFeature("BareSlashRegexLiterals"), .enableUpcomingFeature("IsolatedDefaultValues"),/' "$P"
+          grep -nE "swiftLanguageModes|BareSlashRegex" "$P"
 
       - name: Generate iOS project (expo prebuild + pod install)
         run: npx expo prebuild --platform ios
